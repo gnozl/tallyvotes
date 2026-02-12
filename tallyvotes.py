@@ -19,7 +19,7 @@ def import_csv(filename="votes.csv"):
 				continue
 			voterID = i['VoterID']
 			votes = [i['1st Place'], i['2nd Place'], i['3rd Place'] ]
-			#TODO: Allow every candidate to be ranked, not just top 3 
+	#TODO: Allow every candidate to be ranked, not just top 3 
 			ballots[voterID] = Ballot(voterID, votes)
 
 	return ballots
@@ -68,47 +68,100 @@ def score_voting(points):
 			if 0 <= index < len(points):
 				tally[vote] += points[index]
 
-
-
 	return tally
 
 
 def instant_runoff():
 	import copy
-	new_ballot = copy.deepcopy(ballot)
-	new_candidates = copy.deepcopy(candidates)
+	ir_ballot = copy.deepcopy(ballot)
+	live_candidates = copy.deepcopy(candidates)
 
-	#TODO: Finish this
+	for candidate in live_candidates:
+		if candidate in dq_list:
+			live_candidates.remove(candidate)
+			continue
+		
+	winner = False
+	runoff_round = 0
+	while not winner:
+
+		# RESET TOTALS
+		runoff_total = {}
+		votes_cast = 0
+		runoff_round += 1
+
+		for candidate in live_candidates:
+			runoff_total[candidate] = 0 
+
+		# COUNT BALLOTS
+		for ID in ir_ballot:
+			if ir_ballot[ID].dead:
+				continue
+
+			vote_exhausted = True
+
+			for vote in ir_ballot[ID].votes:
+				if vote in live_candidates:
+					vote_exhausted = False
+					runoff_total[vote] += 1
+					votes_cast += 1
+					break
+			
+			if vote_exhausted:
+				ir_ballot[ID].dead = True
+
+
+
+		# CHECK FOR WINNER
+		votes_needed = 1 + votes_cast // 2 
+		# print("Round " + str(runoff_round))
+		# print("Votes needed: " + str(votes_needed))
+		# print("Live Ballots: " + str(votes_cast))
+		# print(runoff_total)
+
+		for poem in runoff_total:
+			if runoff_total[poem] >= votes_needed:
+				winner = poem
+
+		# REMOVE LOWEST PERFORMING CANDIDATES
+		if winner == False:
+			for candidate in live_candidates:
+				if runoff_total[candidate] == 0:
+					live_candidates.remove(candidate)
+					del runoff_total[candidate]
+					# print(candidate + " out in round " + str(runoff_round))
+			loser = min(runoff_total, key=runoff_total.get)
+			live_candidates.remove(loser)
+			# print(loser + " out in round " + str(runoff_round))
+
+	return winner
+
 
 
 def tally_votes(mode):
 
-	if mode == "1" or "0":
-		mode = "Point"
+	if mode == "1" or mode == "0":
 		tally = score_voting([3,2,1])
 		winner = max(tally, key=tally.get)
 		print("Point Value Winner is " + winner + " with " + str(tally[winner]) + " out of " + str(3*voters) + " maximum possible points.")
 
-
-	if mode == "2" or "0": 
-		mode = "Approval"
+	if mode == "2" or mode == "0": 
 		tally = score_voting([1,1,1])
 		winner = max(tally, key=tally.get)
 		print(str(tally[winner]) + " out of " + str(voters) + " voters approve of " + winner + " as the winner.")
 
-
-	if mode == "3" or "0": 
-		mode = "Plurality"
+	if mode == "3" or mode == "0": 
 		tally = score_voting([1])
 		winner = max(tally, key=tally.get)
 		print(winner + " won, with " + str(tally[winner]) + " first place votes.")
 
+	if mode == "4" or mode == "0":
+		winner = instant_runoff()
+		print(winner + " received a majority of the vote in the Instant Runoff.")
 
-	elif mode == "4" or "0":
-		mode = "Instant Runoff"
-		tally = instant_runoff()
-
-	#TODO: 
+	#TODO: MINMAX Winning Votes
+	#TODO: MINMAX Margins
+	#TODO: MINMAX Pairwise Opposition
 
 	else: return Exception("tally_votes argument error")
 
