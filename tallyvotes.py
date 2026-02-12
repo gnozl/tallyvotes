@@ -36,7 +36,7 @@ def disqualified(filename="dq.txt"):
 		dq_list = file.read().splitlines()
 
 	for dq in dq_list:
-		print(dq + " has been disqualified.")
+		print(f"{dq} has been disqualified.")
 
 	return dq_list
 
@@ -143,21 +143,22 @@ def tally_votes(mode):
 	if mode == "1" or mode == "0":
 		tally = score_voting([3,2,1])
 		winner = max(tally, key=tally.get)
-		print("Point Value Winner is " + winner + " with " + str(tally[winner]) + " out of " + str(3*voters) + " maximum possible points.")
+		print(f"Point Value Winner is {winner} with {tally[winner]} out of {3*voters} maximum possible points.")
 
 	if mode == "2" or mode == "0": 
 		tally = score_voting([1,1,1])
 		winner = max(tally, key=tally.get)
-		print(str(tally[winner]) + " out of " + str(voters) + " voters approve of " + winner + " as the winner.")
+		print(f"{tally[winner]} out of {voters} voters approve of {winner} as the winner.")
 
 	if mode == "3" or mode == "0": 
 		tally = score_voting([1])
 		winner = max(tally, key=tally.get)
-		print(winner + " won, with " + str(tally[winner]) + " first place votes.")
+		percent = 100 * tally[winner] / voters
+		print(f"{winner} won a plurality, with {tally[winner]} first place votes ({percent:.2f}%).")
 
 	if mode == "4" or mode == "0":
 		winner = instant_runoff()
-		print(winner + " received a majority of the vote in the Instant Runoff.")
+		print(f"{winner} received a majority of the vote in the Instant Runoff.")
 
 	#TODO: MINMAX Winning Votes
 	#TODO: MINMAX Margins
