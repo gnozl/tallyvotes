@@ -204,7 +204,7 @@ def run():
 
 parser = ArgumentParser()
 parser.add_argument("filename", type=str, help="path to CSV with vote data to be read.")
-parser.add_argument("-d", "--disqualified", dest="dqlist", help="TXT with names of disqualified voters/poems.")
+parser.add_argument("-dq", "--disqualified", dest="dqlist", help="TXT with names of disqualified voters/poems.")
 parser.add_argument("-v", "--verbose", action='store_true', help='Enable verbose mode')
 args = parser.parse_args()
 
