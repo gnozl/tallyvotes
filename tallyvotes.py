@@ -1,49 +1,86 @@
 from argparse import ArgumentParser
+import pprint
+from dataclasses import dataclass
 
 class Ballot:
-    def __init__(self, ID, votes, dead = False):  
+    def __init__(self, ID: str, votes: dict, dead: bool = False):  
 
-	    self.ID = ID
-	    self.votes = votes
-	    self.dead = dead
+	    self.ID 	: str 	= ID
+	    self.votes 	: dict 	= votes
+	    self.dead 	: bool 	= dead
 
-
-def import_csv(filename="votes.csv"):
+def import_csv(filename: str):
 	import csv
 
 	ballots = {}
 
-	if args.filename:
-		filename = args.filename
+	if filename[-4:] != ".csv":
+		raise Exception("Votes must be in CSV format.\n")
 
 	with open(filename, newline='') as csvfile:
 		ballotReader = csv.DictReader(csvfile)
 
-		for i in ballotReader:
-			if i['VoterID'] in dq_list: 
-				continue
-				
-			voterID = i.pop('VoterID')
 
-			keys = i.keys()
-			votes = [i[key] for key in keys if i[key]]
+		while True:
+			primary_key = input("Please enter the primary key: ")
+
+			if primary_key == "":
+				if "VoterID" in ballotReader.fieldnames:
+					primary_key = "VoterID"
+					break
+				else: 
+					pass
+			
+			elif primary_key not in ballotReader.fieldnames:
+				print("Key not found in CSV.\n")
+
+			else:
+				break
+
+		
+		remove_keys = []
+		while True:
+			i = input("Keys to remove: ")
+			if i == "" or i  == "None":
+				remove_keys.append("TimeStamp")
+				remove_keys.append("Competitor?")
+				break
+
+			else: remove_keys.append(i)
+
+
+		for ballot in ballotReader:
+
+			if ballot[primary_key] in DQLIST:
+				print(ballot[primary_key] + " was disqualified.\n") 
+				continue
+
+			# for key in remove_keys:
+			# 	if key in ballot.keys():
+			# 		ballot.pop(key)
+
+			[ballot.pop(key) for key in remove_keys if key in ballot.keys()]
+				
+			voterID = ballot.pop(primary_key)
+			keys = ballot.keys()
+			votes = [ballot[key] for key in keys if ballot[key]]
 
 			ballots[voterID] = Ballot(voterID, votes)
 
 	return ballots
 
-
-def disqualified(filename="dq.txt"):
+def disqualified(filename):
 
 	dq_list = []
 
 	#if (input("Import DQ list? ") not in ['y', 'Y', 'yes', 'Yes', 'YES']):
 	#	return dq_list
 
-	if not args.dqlist:
+	if not filename:
 		return dq_list
 
-	filename = args.dqlist
+	if filename[-4:] != ".txt":
+		raise Exception("DQ file must be in TXT format.")
 
 	with open(filename) as file:
 		dq_list = file.read().splitlines()
@@ -53,11 +90,10 @@ def disqualified(filename="dq.txt"):
 
 	return dq_list
 
-
 def get_candidates():
 	candidates = []
-	for voterID in ballot:
-		for vote in ballot[voterID].votes:
+	for voterID in BALLOTS:
+		for vote in BALLOTS[voterID].votes:
 			if vote == "":
 				continue
 			if vote not in candidates:
@@ -65,20 +101,17 @@ def get_candidates():
 
 	return candidates
 
-
-def score_voting(points="default"):
-	if points == "default":
-		points = len(candidates)
+def score_voting(mode, points):
 
 	tally = {}
 
-	for ID in ballot:
+	for ID in BALLOTS:
 
-		if ballot[ID].dead:
+		if BALLOTS[ID].dead:
 			continue
 
-		for index, vote in enumerate(ballot[ID].votes):
-			if vote in dq_list:
+		for index, vote in enumerate(BALLOTS[ID].votes):
+			if vote in DQLIST:
 				continue
 			if vote not in tally:
 				tally[vote] = 0
@@ -89,18 +122,30 @@ def score_voting(points="default"):
 				if 0 <= index < points:
 					tally[vote] += points - index
 
-	if args.verbose: print(tally)
+	tally = dict(sorted(tally.items(), key=lambda item: item[1]))
 
-	return tally
+	if ARGS.verbose: pprint.pp(tally)
 
+	winner = max(tally, key=tally.get)
+
+	match mode:
+		case "PV10":
+			print(f"\033[32mTop Ten Winner is {winner} with {tally[winner]} out of {10*VOTERS} maximum possible points.\033[0m\n")
+		case "PMAX":
+			print(f"\033[32mPoint Value Winner is {winner} with {tally[winner]} out of {len(CANDIDATES)*VOTERS} maximum possible points.\033[0m\n")
+		case "APPR":
+			print(f"\033[32m{tally[winner]} out of {VOTERS} voters approve of {winner} as the winner.\033[0m\n")
+		case "FPTP":
+			percent = 100 * tally[winner] / VOTERS
+			print(f"\033[32m{winner} won a plurality, with {tally[winner]} first place votes ({percent:.2f}%).\033[0m\n")
 
 def instant_runoff():
 	import copy
-	ir_ballot = copy.deepcopy(ballot)			# dict of Ballot 
-	live_candidates = copy.deepcopy(candidates) # list of string
+	ir_ballot = copy.deepcopy(BALLOTS)			# dict of Ballot 
+	live_candidates = copy.deepcopy(CANDIDATES) # list of string
 
 	for candidate in live_candidates:
-		if candidate in dq_list:
+		if candidate in DQLIST:
 			live_candidates.remove(candidate)
 			continue
 		
@@ -141,9 +186,9 @@ def instant_runoff():
 		# print("Live Ballots: " + str(votes_cast))
 		# print(runoff_total)
 
-		for poem in runoff_total:
-			if runoff_total[poem] >= votes_needed:
-				winner = poem
+		for candidate in runoff_total:
+			if runoff_total[candidate] >= votes_needed:
+				winner = candidate
 
 		# REMOVE LOWEST PERFORMING CANDIDATES
 		if winner == False:
@@ -151,67 +196,85 @@ def instant_runoff():
 				if runoff_total[candidate] == 0:
 					live_candidates.remove(candidate)
 					del runoff_total[candidate]
-					if args.verbose: print("Round " + str(runoff_round) + " - Eliminated: " + candidate)
+					if ARGS.verbose: print("Round " + str(runoff_round) + " - Eliminated: " + candidate)
 			loser = min(runoff_total, key=runoff_total.get)
 			live_candidates.remove(loser)
-			if args.verbose: print("Round " + str(runoff_round) + " - Eliminated: " + loser)
+			if ARGS.verbose: print("Round " + str(runoff_round) + " - Eliminated: " + loser)
 
-	if args.verbose:
+	if ARGS.verbose:
 		for candidate in live_candidates:
 			if candidate != winner:
 				print("Round " + str(runoff_round) + " - Eliminated: " + candidate)
 
-	return winner
-
+	print(f"\033[32m{winner} received a majority of the vote in the Instant Runoff.\033[0m\n")
 
 def tally_votes(mode):
 
-	if mode == "1" or mode == "0":
-		tally = score_voting()
-		winner = max(tally, key=tally.get)
-		print(f"\033[32mPoint Value Winner is {winner} with {tally[winner]} out of {len(candidates)*voters} maximum possible points.\033[0m\n")
+	METHOD = {
+		"PMAX" : "score_voting('PMAX', len(CANDIDATES))",
+		"PV10" : "score_voting('PV10', 10)",
+		"APPR" : "score_voting('APPR', [1 for x in CANDIDATES])",
+		"FPTP" : "score_voting('FPTP', [1])",
+		"INST" : "instant_runoff()"
+		}
 
-	if mode == "2" or mode == "0": 
-		tally = score_voting([1 for x in candidates])
-		winner = max(tally, key=tally.get)
-		print(f"\033[32m{tally[winner]} out of {voters} voters approve of {winner} as the winner.\033[0m\n")
+	if mode == "ALL":
+		for x in METHOD:
+			eval(METHOD[x])
+		return
 
-	if mode == "3" or mode == "0": 
-		tally = score_voting([1])
-		winner = max(tally, key=tally.get)
-		percent = 100 * tally[winner] / voters
-		print(f"\033[32m{winner} won a plurality, with {tally[winner]} first place votes ({percent:.2f}%).\033[0m\n")
-
-	if mode == "4" or mode == "0":
-		winner = instant_runoff()
-		print(f"\033[32m{winner} received a majority of the vote in the Instant Runoff.\033[0m\n")
+	eval(METHOD[mode])
 
 	#TODO: MINMAX Winning Votes
 	#TODO: MINMAX Margins
 	#TODO: MINMAX Pairwise Opposition
 
-	else: return Exception("tally_votes argument error")
+	# return Exception("tally_votes argument error")
 
+def parse_args():
+	parser = ArgumentParser()
+	parser.add_argument("votes", type=str, help="path to CSV with vote data to be read.")
+	parser.add_argument("-dq", "--disqualify", dest="dqlist", help="path to TXT with names of disqualified voters/votes.")
+	parser.add_argument("-v", "--verbose", action='store_true', help='Enable verbose mode')
+	parser.add_argument("-a", "--all", action='store_true', help='Run all tallies')
+	#TODO: Add create votes / simulation mode
+
+	return parser.parse_args()
 
 def run():
-	print("Enter tallying method: ")
-	print("1. Point Value\n2. Approval\n3. First Past the Post\n4. Instant Runoff\n0. Run all the simulations.")
-	mode = input()
-	options = ["0", "1", "2", "3","4"]
-	if mode not in options:
-		return print("Please select an available option.")
-	tally_votes(mode)
 
-parser = ArgumentParser()
-parser.add_argument("filename", type=str, help="path to CSV with vote data to be read.")
-parser.add_argument("-dq", "--disqualified", dest="dqlist", help="TXT with names of disqualified voters/poems.")
-parser.add_argument("-v", "--verbose", action='store_true', help='Enable verbose mode')
-args = parser.parse_args()
+	global ARGS, DQLIST, BALLOTS, CANDIDATES, VOTERS
 
-dq_list = disqualified()
-ballot = import_csv()
-candidates = get_candidates()
-voters = len(ballot)
-run()
-# while(input("Run again? (Y/N): ") in ['y', 'Y', 'yes', 'Yes', 'YES']):
-#	run()
+	ARGS = parse_args()
+	DQLIST = disqualified(ARGS.dqlist)
+	BALLOTS = import_csv(ARGS.votes)
+	CANDIDATES = get_candidates()
+	VOTERS = len(BALLOTS)
+
+	if ARGS.all:
+		tally_votes("ALL")
+		return
+
+	OPTION = {
+		"PMAX" : "Point Value w/ unlimited votes per ballot",
+		"PV10" : "Point Value w/ up to 10 votes per ballot",
+		"APPR" : "Approval Voting",
+		"FPTP" : "First Past the Post / Winner Takes All",
+		"INST" : "Instant Runoff / Preferential Voting",
+		"ALL"  : "Run Every Simulation"
+		}
+
+	run_again = "Y"
+	while run_again in ('Y', 'YES'):
+		for option in OPTION:
+			print(option + ": " + OPTION[option])
+
+		while(mode:=input("Enter tallying method: ").upper()) not in OPTION: 
+			pass
+
+		tally_votes(mode)
+
+		run_again = input("Run again? (y/n): ").upper()
+
+if __name__ == "__main__":
+	run()
